@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Commodity & Index Dashboard</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background: #0f0f1a;
+            color: #e0e0ff;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            padding: 12px 20px;
+            background: rgba(15, 15, 26, 0.92);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid #2a2a4a;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            height: 60px;
+        }
+
+        .view-btn {
+            padding: 10px 18px;
+            background: #2e86de;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .view-btn:hover {
+            background: #1e6fc9;
+            transform: translateY(-1px);
+        }
+
+        .view-btn.active {
+            background: #4dabf7;
+            box-shadow: 0 0 12px rgba(77, 171, 247, 0.5);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: #a5d8ff;
+        }
+
+        main {
+            padding-top: 60px;
+        }
+
+        .view-section {
+            display: none;
+        }
+
+        .view-section.active {
+            display: block;
+        }
+
+        .ticker-container {
+            width: 100%;
+            max-width: 100%;
+            padding: 0 10px 20px;
+        }
+
+        .slides-wrapper {
+            position: relative;
+            min-height: calc(100vh - 140px);
+        }
+
+        .slide {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transition: opacity 0.9s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 10px;
+        }
+
+        .slide.active {
+            opacity: 1;
+        }
+
+        .group-header {
+            background: #0f3460;
+            color: #a5d8ff;
+            padding: 14px;
+            border-radius: 8px;
+            font-size: 1.45rem;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+        }
+
+        .widget-card {
+            background: #16213e;
+            border-radius: 10px;
+            padding: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            min-height: 520px;
+        }
+
+        .widget-title {
+            margin: 0 0 12px 0;
+            font-size: 1.4rem;
+            color: #4dabf7;
+            text-align: center;
+        }
+
+        .te-embed {
+            flex: 1;
+            width: 100% !important;
+            height: 100% !important;
+            min-height: 480px;
+        }
+
+        .progress {
+            text-align: center;
+            margin: 20px 0;
+            color: #888;
+            font-size: 1rem;
+        }
+
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        button {
+            padding: 12px 28px;
+            margin: 0 12px;
+            background: #2e86de;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1.1rem;
+        }
+
+        button:hover {
+            background: #1e6fc9;
+        }
+
+        button:disabled {
+            background: #444;
+            cursor: not-allowed;
+        }
+
+        /* Tree Map */
+       #treeMapView {
+    padding: 0;
+    margin: 0;
+    height: calc(100vh - 60px);     /* full height minus header */
+    display: flex;
+    flex-direction: column;
+}
+
+#treeMapContainer {
+    flex: 1;                        /* grow to fill all available space */
+    background: #16213e;
+    margin: 0;
+    padding: 0;
+    border-radius: 0;               /* optional: remove rounding for full look */
+    overflow: hidden;
+}
+
+#treeMapContainer .te-embed {
+    width: 100% !important;
+    height: 100% !important;        /* ← this is the key line */
+}
+    </style>
+    <script src="https://embed.tradingeconomics.com/widget.js"></script>
+</head>
+<body>
+
+<header>
+    <button class="view-btn active" id="tickerViewBtn">Ticker View (3 at a time)</button>
+    <button class="view-btn" id="treeMapViewBtn">Tree Map Overview</button>
+    <h1>Commodity & Index Dashboard</h1>
+</header>
+
+<main>
+
+    <div id="tickerView" class="view-section active">
+        <div class="ticker-container">
+            <div class="slides-wrapper" id="slidesWrapper"></div>
+            <div class="progress" id="progressText">Loading...</div>
+            <div class="controls">
+                <button id="prevBtn">← Previous</button>
+                <button id="nextBtn">Next →</button>
+                <button id="pauseBtn">Pause</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="treeMapView" class="view-section">
+        <div id="treeMapContainer">
+        </div>
+    </div>
+
+</main>
+
+<script>
+// ────────────────────────────────────────────────
+// DATA
+// ────────────────────────────────────────────────
+const groupedItems = [
+    { title: "Energy", items: [
+        { symbol: "cl1:com", name: "Crude Oil (WTI)" },
+        { symbol: "co1:com", name: "Brent Crude Oil" },
+        { symbol: "ng1:com", name: "Natural Gas" },
+        { symbol: "ho1:com", name: "Heating Oil / Diesel" },
+        { symbol: "XB1:COM", name: "Gasoline" },
+        { symbol: "PNL:COM", name: "Propane" }
+    ]},
+    { title: "Metals & Precious", items: [
+        { symbol: "hg1:com", name: "Copper" },
+        { symbol: "xauusd:cur", name: "Gold" },
+        { symbol: "xagusd:cur", name: "Silver" },
+        { symbol: "LMAHDS03:COM", name: "Aluminum" },
+        { symbol: "LN1:COM", name: "Nickel" },
+        { symbol: "LCO1:COM", name: "Cobalt" },
+        { symbol: "SI:COM", name: "Silicon" }
+    ]},
+    { title: "Industrial Materials", items: [
+        { symbol: "HRC:COM", name: "HRC Steel" },
+        { symbol: "SSC:COM", name: "Scrap Steel" },
+        { symbol: "LB1:COM", name: "Lumber" },
+        { symbol: "SPSCFI:COM", name: "Containerized Freight" }
+    ]},
+    { title: "Plastics & Chemicals", items: [
+        { symbol: "pvc:com", name: "Polyvinyl Chloride (PVC)" },
+        { symbol: "POL:COM", name: "Polyethylene" },
+        { symbol: "PYL:COM", name: "Polypropylene" },
+        { symbol: "MOB:COM", name: "Naphtha" }
+    ]},
+    { title: "Other Commodities", items: [
+        { symbol: "JN1:COM", name: "Rubber" },
+        { symbol: "LC:COM", name: "Lithium" }
+    ]},
+    { title: "Stock Market Indices", items: [
+        { symbol: "indu:ind", name: "USA NY Dow (US30)" },
+        { symbol: "us100:ind", name: "USA NASDAQ 100" },
+        { symbol: "spx:ind", name: "USA S&P 500" },
+        { symbol: "nky:ind", name: "Japan Nikkei 225" },
+        { symbol: "shsz300:ind", name: "SHANGHAI - CSI300" }
+    ]},
+    { title: "Exchange Rates", items: [
+        { symbol: "eurusd:cur", name: "EUR/USD" },
+        { symbol: "usdjpy:cur", name: "USD/JPY" },
+        { symbol: "usdcad:cur", name: "USD/CAD" },
+        { symbol: "usdinr:cur", name: "USD/INR" },
+        { symbol: "usdmxn:cur", name: "USD/MXN" }
+    ]}
+];
+
+const allItems = groupedItems.flatMap(group => group.items);
+
+const ITEMS_PER_SLIDE = 3;
+const AUTO_SCROLL_MS = 8000;
+
+// ────────────────────────────────────────────────
+// DOM
+// ────────────────────────────────────────────────
+const slidesWrapper   = document.getElementById('slidesWrapper');
+const progressText    = document.getElementById('progressText');
+const tickerView      = document.getElementById('tickerView');
+const treeMapView     = document.getElementById('treeMapView');
+const tickerViewBtn   = document.getElementById('tickerViewBtn');
+const treeMapViewBtn  = document.getElementById('treeMapViewBtn');
+const treeMapContainer = document.getElementById('treeMapContainer');
+
+let currentSlideIndex = 0;
+let autoScrollInterval = null;
+let isPaused = false;
+
+// ────────────────────────────────────────────────
+// VIEW SWITCHING
+// ────────────────────────────────────────────────
+function showView(view) {
+    tickerView.classList.remove('active');
+    treeMapView.classList.remove('active');
+    tickerViewBtn.classList.remove('active');
+    treeMapViewBtn.classList.remove('active');
+
+    if (view === 'ticker') {
+        tickerView.classList.add('active');
+        tickerViewBtn.classList.add('active');
+        hydrateActiveSlide();
+        startAutoScroll();
+    } else {
+        treeMapView.classList.add('active');
+        treeMapViewBtn.classList.add('active');
+        ensureTreeMapWidget();
+    }
+}
+
+tickerViewBtn.addEventListener('click', () => showView('ticker'));
+treeMapViewBtn.addEventListener('click', () => showView('treemap'));
+
+// ────────────────────────────────────────────────
+// CREATE SLIDES – vertical stack
+// ────────────────────────────────────────────────
+function createSlides() {
+    slidesWrapper.innerHTML = '';
+    let slideCount = 0;
+    let itemIndex = 0;
+
+    while (itemIndex < allItems.length) {
+        const slide = document.createElement('div');
+        slide.className = 'slide';
+        slide.dataset.index = slideCount;
+
+        let itemsInSlide = 0;
+
+        // Add group header
+        if (itemIndex < allItems.length) {
+            const firstItem = allItems[itemIndex];
+            let groupTitle = "";
+            for (const group of groupedItems) {
+                if (group.items.some(it => it.symbol === firstItem.symbol)) {
+                    groupTitle = group.title;
+                    break;
+                }
+            }
+            if (groupTitle) {
+                const header = document.createElement('div');
+                header.className = 'group-header';
+                header.textContent = groupTitle;
+                slide.appendChild(header);
+            }
+        }
+
+        while (itemsInSlide < ITEMS_PER_SLIDE && itemIndex < allItems.length) {
+            const item = allItems[itemIndex];
+            const card = document.createElement('div');
+            card.className = 'widget-card';
+            card.dataset.symbol = item.symbol;
+            card.dataset.name = item.name;
+
+            const title = document.createElement('h3');
+            title.className = 'widget-title';
+            title.textContent = item.name;
+
+            card.appendChild(title);
+            slide.appendChild(card);
+
+            itemIndex++;
+            itemsInSlide++;
+        }
+
+        slidesWrapper.appendChild(slide);
+        slideCount++;
+    }
+
+    if (slidesWrapper.children.length > 0) {
+        slidesWrapper.children[0].classList.add('active');
+        currentSlideIndex = 0;
+        updateProgress();
+        startAutoScroll();
+    }
+}
+
+function showSlide(index) {
+    const slides = slidesWrapper.querySelectorAll('.slide');
+    if (index < 0 || index >= slides.length) return;
+
+    slides.forEach((s, i) => s.classList.toggle('active', i === index));
+    currentSlideIndex = index;
+    hydrateActiveSlide();
+    updateProgress();
+}
+
+function nextSlide() {
+    let next = currentSlideIndex + 1;
+    if (next >= slidesWrapper.children.length) next = 0;
+    showSlide(next);
+}
+
+function prevSlide() {
+    let prev = currentSlideIndex - 1;
+    if (prev < 0) prev = slidesWrapper.children.length - 1;
+    showSlide(prev);
+}
+
+function updateProgress() {
+    const total = slidesWrapper.children.length;
+    progressText.textContent = `Slide ${currentSlideIndex + 1} of ${total} • ${ITEMS_PER_SLIDE} items`;
+}
+
+function startAutoScroll() {
+    if (autoScrollInterval) clearInterval(autoScrollInterval);
+    autoScrollInterval = setInterval(() => {
+        if (!isPaused) nextSlide();
+    }, AUTO_SCROLL_MS);
+}
+
+function togglePause() {
+    isPaused = !isPaused;
+    document.getElementById('pauseBtn').textContent = isPaused ? 'Resume' : 'Pause';
+}
+
+function renderTradingEconomicsWidgets() {
+    if (window.TradingEconomics && typeof window.TradingEconomics.render === 'function') {
+        window.TradingEconomics.render();
+    }
+}
+
+function ensureWidgetEmbed(card) {
+    if (card.querySelector('.te-embed, iframe[title*="Trading Economics"]')) {
+        return;
+    }
+
+    const widget = document.createElement('div');
+    widget.className = 'te-embed';
+    widget.setAttribute('data-widget', 'mc-pro');
+    widget.setAttribute('data-symbol', card.dataset.symbol);
+    widget.setAttribute('data-height', '520');
+    card.appendChild(widget);
+}
+
+function pruneInactiveSlides() {
+    slidesWrapper.querySelectorAll('.slide').forEach((slide, slideIndex) => {
+        if (slideIndex === currentSlideIndex) {
+            return;
+        }
+
+        slide.querySelectorAll('.widget-card').forEach((card) => {
+            card.querySelectorAll('.te-embed, iframe[title*="Trading Economics"]').forEach((node) => {
+                node.remove();
+            });
+        });
+    });
+}
+
+function hydrateActiveSlide() {
+    const activeSlide = slidesWrapper.querySelector('.slide.active');
+    if (!activeSlide) return;
+
+    pruneInactiveSlides();
+    activeSlide.querySelectorAll('.widget-card').forEach(ensureWidgetEmbed);
+    setTimeout(renderTradingEconomicsWidgets, 150);
+}
+
+function ensureTreeMapWidget() {
+    if (treeMapContainer.querySelector('.te-embed, iframe[title*="Trading Economics"]')) {
+        return;
+    }
+
+    const widget = document.createElement('div');
+    widget.className = 'te-embed';
+    widget.setAttribute('data-widget', 'tm-pro');
+    widget.setAttribute('data-height', '900');
+    treeMapContainer.appendChild(widget);
+    setTimeout(renderTradingEconomicsWidgets, 150);
+}
+
+document.getElementById('nextBtn').addEventListener('click', nextSlide);
+document.getElementById('prevBtn').addEventListener('click', prevSlide);
+document.getElementById('pauseBtn').addEventListener('click', togglePause);
+
+// ────────────────────────────────────────────────
+// INIT
+// ────────────────────────────────────────────────
+createSlides();
+hydrateActiveSlide();
+</script>
+
+</body>
+</html>
